@@ -133,7 +133,7 @@ jobs:
 
       - name: Build CFFI Library
         run: |
-          cargo build --release -p baml_cffi
+          hurry cargo build --release -p baml_cffi
         working-directory: engine
 
       - name: List built artifacts

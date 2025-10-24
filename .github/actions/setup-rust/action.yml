@@ -94,3 +94,10 @@ runs:
       if: inputs.enable-cross == 'true'
       run: cargo install cross --git https://github.com/cross-rs/cross
       shell: bash
+
+    - name: Install hurry
+      if: runner.os != 'Windows'
+      run: |
+        curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+      shell: bash

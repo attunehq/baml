@@ -129,10 +129,15 @@ jobs:
       # Build the CLI - Always use static-ssl features
       - name: Build CLI Binary
         # This single step now handles all builds
-        run: >
-          ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }}
-          --features static-ssl
-          --no-default-features
+        shell: bash
+        run: |
+          if [[ "${{ env.CARGO }}" == "cross" ]] || [[ "${{ matrix._.os }}" == windows-* ]]; then
+            # hurry doesn't support cross or Windows yet, use cargo/cross directly
+            ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }} --features static-ssl --no-default-features
+          else
+            # For native macOS/Linux builds, use hurry
+            hurry cargo build --release --bin baml-cli ${{ env.TARGET_FLAGS }} --features static-ssl --no-default-features
+          fi
         working-directory: engine
 
       - name: Build CFFI Library
@@ -154,7 +159,13 @@ jobs:
           export GOBIN=$GOPATH/bin
           export PATH=$PATH:$GOROOT:$GOPATH:$GOBIN
 
-          ${{ env.CARGO }} build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
+          if [[ "${{ env.CARGO }}" == "cross" ]] || [[ "${{ matrix._.os }}" == windows-* ]]; then
+            # hurry doesn't support cross or Windows yet, use cargo/cross directly
+            ${{ env.CARGO }} build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
+          else
+            # For native macOS/Linux builds, use hurry
+            hurry cargo build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
+          fi
         working-directory: engine
 
       # Determine CFFI library name and artifact suffix based on OS
