@@ -82,6 +82,7 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+
       - uses: jdx/mise-action@v2
         with:
           install_args: "protoc-gen-go"
@@ -92,7 +93,7 @@ jobs:
         run: |
           echo "Current PATH: $PATH"
           echo "Go bin directory contents:"
-          ls -la $HOME/go/bin/ || echo "No $HOME/go/bin directory"
+          ls -la $HOME/go/bin/
           echo "Which protoc-gen-go:"
           PROTOC_GEN_GO_PATH=$(which protoc-gen-go)
           echo "Found protoc-gen-go at: $PROTOC_GEN_GO_PATH"
@@ -129,7 +130,10 @@ jobs:
       - name: Build CLI Binary
         # This single step now handles all builds
         shell: bash
-        run: hurry ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }} --features static-ssl --no-default-features
+        run: >
+          hurry ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }}
+          --features static-ssl
+          --no-default-features
         working-directory: engine
 
       - name: Build CFFI Library
