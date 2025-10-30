@@ -83,7 +83,16 @@ jobs:
         uses: ./.github/actions/setup-go
 
 
-      - uses: jdx/mise-action@v2
+      - name: Install protoc-gen-go (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.1
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Install protoc-gen-go (Unix)
+        if: runner.os != 'Windows'
+        uses: jdx/mise-action@v2
         with:
           install_args: "protoc-gen-go"
 
@@ -93,7 +102,7 @@ jobs:
         run: |
           echo "Current PATH: $PATH"
           echo "Go bin directory contents:"
-          ls -la $HOME/go/bin/
+          ls -la $HOME/go/bin/ || echo "No $HOME/go/bin directory"
           echo "Which protoc-gen-go:"
           PROTOC_GEN_GO_PATH=$(which protoc-gen-go)
           echo "Found protoc-gen-go at: $PROTOC_GEN_GO_PATH"
