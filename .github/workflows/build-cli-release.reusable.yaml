@@ -129,7 +129,6 @@ jobs:
       # Build the CLI - Always use static-ssl features
       - name: Build CLI Binary
         # This single step now handles all builds
-        shell: bash
         run: >
           hurry ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }}
           --features static-ssl
