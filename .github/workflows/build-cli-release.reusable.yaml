@@ -82,17 +82,7 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-
-      - name: Install protoc-gen-go (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.1
-          echo "$HOME/go/bin" >> $GITHUB_PATH
-
-      - name: Install protoc-gen-go (Unix)
-        if: runner.os != 'Windows'
-        uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v2
         with:
           install_args: "protoc-gen-go"
 
@@ -151,7 +141,7 @@ jobs:
             export PROTOC_GEN_GO_PATH="/usr/local/bin/protoc-gen-go"
           elif [[ "${{ runner.os }}" == "Windows" ]]; then
             # For Windows, add .exe extension and use Windows path format
-            export PROTOC_GEN_GO_PATH="$HOME/go/bin/protoc-gen-go.exe"
+            export PROTOC_GEN_GO_PATH="${{ steps.protoc_gen_go_setup.outputs.protoc_gen_go_path }}.exe"
           else
             # For native builds (macOS), use the host path
             export PROTOC_GEN_GO_PATH="${{ steps.protoc_gen_go_setup.outputs.protoc_gen_go_path }}"
