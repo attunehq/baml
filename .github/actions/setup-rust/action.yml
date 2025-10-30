@@ -95,9 +95,15 @@ runs:
       run: cargo install cross --git https://github.com/cross-rs/cross
       shell: bash
 
-    - name: Install hurry
+    - name: Install hurry (Unix)
       if: runner.os != 'Windows'
       run: |
-        curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash
+        curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.3.0-alpha.1
         echo "$HOME/.local/bin" >> $GITHUB_PATH
       shell: bash
+
+    - name: Install hurry (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        $env:Version="0.3.0-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+      shell: powershell
