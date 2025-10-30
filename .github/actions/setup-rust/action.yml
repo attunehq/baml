@@ -106,4 +106,5 @@ runs:
       if: runner.os == 'Windows'
       run: |
         $env:Version="0.3.0-alpha.2"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+        "$env:LOCALAPPDATA\Programs\hurry" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       shell: powershell
