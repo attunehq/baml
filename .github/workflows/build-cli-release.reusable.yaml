@@ -149,6 +149,9 @@ jobs:
           if [[ "${{ env.CARGO }}" == "cross" ]]; then
             # For cross builds (Linux), protoc-gen-go will be installed in the container at /usr/local/bin
             export PROTOC_GEN_GO_PATH="/usr/local/bin/protoc-gen-go"
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            # For Windows, add .exe extension and use Windows path format
+            export PROTOC_GEN_GO_PATH="$HOME/go/bin/protoc-gen-go.exe"
           else
             # For native builds (macOS), use the host path
             export PROTOC_GEN_GO_PATH="${{ steps.protoc_gen_go_setup.outputs.protoc_gen_go_path }}"
