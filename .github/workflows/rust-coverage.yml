@@ -52,7 +52,7 @@ jobs:
           # Set up environment for coverage
           source <(cargo llvm-cov show-env --export-prefix)
           # Build baml_cffi with coverage instrumentation
-          hurry cargo build --package baml_cffi
+          hurry cargo build --package baml_cffi --verbose
           # Run tests without cleaning the build artifacts
           cargo llvm-cov --lib --workspace --lcov --output-path lcov.info --no-clean
         working-directory: engine

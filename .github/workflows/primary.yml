@@ -141,7 +141,7 @@ jobs:
           enable-wasm: true
 
       - name: Build rust for wasm32
-        run: hurry cargo build --target=wasm32-unknown-unknown
+        run: hurry cargo build --target=wasm32-unknown-unknown --verbose
         working-directory: engine/baml-schema-wasm
 
   # Test node generator (only needs CLI)
@@ -236,9 +236,9 @@ jobs:
           RUBY_LIB_PATH=$(ruby -e 'puts RbConfig::CONFIG["libdir"]')
           export LD_LIBRARY_PATH="${RUBY_LIB_PATH}:${LD_LIBRARY_PATH}"
           # Build baml_cffi shared library
-          hurry cargo build --package baml_cffi
+          hurry cargo build --package baml_cffi --verbose
           # Run tests
-          cargo test --features skip-integ-tests
+          cargo test --features skip-integ-tests --verbose
         working-directory: engine
 
       - name: Run Python integration tests
@@ -276,7 +276,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Build CLI
-        run: hurry cargo build --release --bin baml-cli --target ${{ matrix.target }}
+        run: hurry cargo build --release --bin baml-cli --target ${{ matrix.target }} --verbose
         working-directory: engine
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4

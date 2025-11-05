@@ -55,7 +55,7 @@ jobs:
             ${{ runner.os }}-rust-
 
       - name: Build CFFI Library (Debug mode for speed)
-        run: cargo build -p baml_cffi
+        run: cargo build -p baml_cffi --verbose
         working-directory: engine
         shell: bash
 

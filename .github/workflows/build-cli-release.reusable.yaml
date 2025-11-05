@@ -133,6 +133,7 @@ jobs:
           hurry ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }}
           --features static-ssl
           --no-default-features
+          --verbose
         working-directory: engine
 
       - name: Build CFFI Library
@@ -157,7 +158,7 @@ jobs:
           export GOBIN=$GOPATH/bin
           export PATH=$PATH:$GOROOT:$GOPATH:$GOBIN
 
-          hurry ${{ env.CARGO }} build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
+          hurry ${{ env.CARGO }} build --release -p baml_cffi ${{ env.TARGET_FLAGS }} --verbose
         working-directory: engine
 
       # Determine CFFI library name and artifact suffix based on OS
