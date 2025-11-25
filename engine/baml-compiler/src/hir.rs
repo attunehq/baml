@@ -5,7 +5,7 @@
 use baml_types::ir_type::TypeIR;
 use internal_baml_diagnostics::Span;
 
-use crate::watch::WatchSpec;
+use crate::watch::{WatchSpec, WatchWhen};
 
 pub mod dump;
 pub mod lowering;
@@ -110,9 +110,17 @@ pub struct Block {
     pub trailing_expr: Option<Box<Expression>>,
 }
 
+#[derive(Clone, Debug)]
+pub struct HeaderContext {
+    pub level: u8,
+    pub title: String,
+    pub span: Span,
+}
+
 /// A single unit of execution within a block.
 #[derive(Clone, Debug)]
 pub enum Statement {
+    HeaderContextEnter(HeaderContext),
     /// Assign an immutable variable.
     Let {
         name: String,
@@ -192,7 +200,7 @@ pub enum Statement {
     WatchOptions {
         variable: String,
         channel: Option<String>,
-        when: Option<String>,
+        when: Option<WatchWhen>,
         span: Span,
     },
     /// Manually notify watchers of a variable.
@@ -200,12 +208,6 @@ pub enum Statement {
     WatchNotify {
         variable: String,
         span: Span,
-    },
-
-    /// Annotations that apply to the statement.
-    AnnotatedStatement {
-        headers: Vec<String>,
-        statement: Option<Box<Statement>>,
     },
 }
 

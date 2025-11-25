@@ -126,6 +126,7 @@ time.workspace = true
 tempfile = "3.19.0"
 sha2 = "0.10.9"
 blake3 = "1.8.2"
+flate2 = "1.1.5"
 
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -197,11 +198,11 @@ reedline = "0.37"
 
 
 [features]
-defaults = ["skip-integ-tests", "interpreter"]
+defaults = ["skip-integ-tests"]
 internal = []
 skip-integ-tests = []
 # Use the THIR interpreter runtime instead of the VM bytecode runtime
-interpreter = []
+thir-interpreter = []
 
 
 [dev-dependencies]
@@ -218,3 +219,4 @@ walkdir = "2.5.0"
 wasm-logger = "0.2.0"
 serial_test = "3.2.0"
 console_error_panic_hook = "0.1.7"
+insta = { version = "1.43.2", features = ["yaml", "glob"] }

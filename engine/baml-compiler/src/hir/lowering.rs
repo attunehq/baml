@@ -9,13 +9,15 @@ use baml_types::{
     Constraint, ConstraintLevel, TypeIR, TypeValue,
 };
 use internal_baml_ast::ast::{self, App, AssertStmt, Attribute, ReturnStmt, WithName, WithSpan};
+use internal_baml_diagnostics::Span;
 
 use crate::{
     hir::{
         self, Block, Class, ClassConstructor, ClassConstructorField, Enum, EnumVariant,
-        ExprFunction, Expression, Field, Hir, LlmFunction, Parameter, Statement, TypeArg,
+        ExprFunction, Expression, Field, HeaderContext, Hir, LlmFunction, Parameter, Statement,
+        TypeArg,
     },
-    watch::WatchSpec,
+    watch::{WatchSpec, WatchWhen},
 };
 
 impl Hir {
@@ -334,7 +336,7 @@ impl ExprFunction {
 
 /// Extract name and when fields from a WatchOptions class constructor expression.
 /// Expected expression: baml.WatchOptions{name: "value", when: FunctionName}
-fn extract_watch_options_fields(expr: &ast::Expression) -> (Option<String>, Option<String>) {
+fn extract_watch_options_fields(expr: &ast::Expression) -> (Option<String>, Option<WatchWhen>) {
     use ast::Expression;
 
     // The expression should be a class constructor
@@ -358,10 +360,13 @@ fn extract_watch_options_fields(expr: &ast::Expression) -> (Option<String>, Opti
                         // when should be an identifier (function name) or string "manual"
                         match field_value {
                             Expression::Identifier(id) => {
-                                when = Some(id.name().to_string());
+                                when = Some(WatchWhen::FunctionName(id.clone()));
                             }
                             Expression::StringValue(s, _) if s == "manual" => {
-                                when = Some("manual".to_string());
+                                when = Some(WatchWhen::Manual);
+                            }
+                            Expression::StringValue(s, _) if s == "never" => {
+                                when = Some(WatchWhen::Never);
                             }
                             _ => {}
                         }
@@ -382,7 +387,7 @@ impl Block {
     /// Lower an expression block into HIR for expression blocks.
     pub fn from_expr_block(block: &ast::ExpressionBlock) -> Self {
         // First pass: collect all WatchOptions statements into a map
-        let mut watch_options_map: HashMap<String, (Option<String>, Option<String>)> =
+        let mut watch_options_map: HashMap<String, (Option<String>, Option<WatchWhen>)> =
             HashMap::new();
         for stmt in &block.stmts {
             if let ast::Stmt::WatchOptions(ast::WatchOptionsStmt {
@@ -398,63 +403,93 @@ impl Block {
         }
 
         // Second pass: lower statements, applying watch options to watch specs
-        let statements: Vec<Statement> = block
-            .stmts
-            .iter()
-            .map(|stmt| lower_stmt_with_options(stmt, &watch_options_map))
-            .collect();
+        let mut statements: Vec<Statement> = Vec::new();
+        for stmt in &block.stmts {
+            statements.extend(lower_stmt_with_options(stmt, &watch_options_map));
+        }
+
+        let trailing_expr = block
+            .expr
+            .as_deref()
+            .map(Expression::from_ast)
+            .map(Box::new);
+
+        if !block.expr_headers.is_empty() {
+            statements.extend(header_context_statements(&block.expr_headers));
+        }
 
         Block {
             statements,
-            trailing_expr: block
-                .expr
-                .as_deref()
-                .map(Expression::from_ast)
-                .map(Box::new),
+            trailing_expr,
         }
     }
 }
 
-fn lower_stmt(stmt: &ast::Stmt) -> Statement {
+fn header_context_statements(headers: &[std::sync::Arc<ast::Header>]) -> Vec<Statement> {
+    headers
+        .iter()
+        .map(|header| {
+            Statement::HeaderContextEnter(HeaderContext {
+                level: header.level,
+                title: header.title.clone(),
+                span: header.span.clone(),
+            })
+        })
+        .collect()
+}
+
+fn wrap_statements_as_expression_block(statements: Vec<Statement>, span: Span) -> Statement {
+    Statement::Expression {
+        expr: Expression::Block(
+            Block {
+                statements,
+                trailing_expr: None,
+            },
+            span.clone(),
+        ),
+        span,
+    }
+}
+
+fn lower_stmt(stmt: &ast::Stmt) -> Vec<Statement> {
     lower_stmt_with_options(stmt, &HashMap::new())
 }
 
 #[allow(clippy::ptr_arg)]
 fn maybe_annotated_statement(
     stmt: Statement,
-    annotated_comments: &Vec<std::sync::Arc<ast::Header>>,
-) -> Statement {
+    annotated_comments: &[std::sync::Arc<ast::Header>],
+) -> Vec<Statement> {
     if annotated_comments.is_empty() {
-        stmt
+        vec![stmt]
     } else {
-        println!("Annotated!: {}", stmt.to_doc().pretty(80));
-        Statement::AnnotatedStatement {
-            headers: annotated_comments
-                .iter()
-                .map(|a| a.title.to_string())
-                .collect(),
-            statement: Some(Box::new(stmt)),
-        }
+        let mut statements = header_context_statements(annotated_comments);
+        statements.push(stmt);
+        statements
     }
 }
 
 fn lower_stmt_with_options(
     stmt: &ast::Stmt,
-    watch_options: &HashMap<String, (Option<String>, Option<String>)>,
-) -> Statement {
+    watch_options: &HashMap<String, (Option<String>, Option<WatchWhen>)>,
+) -> Vec<Statement> {
     match stmt {
         ast::Stmt::CForLoop(stmt) => {
-            // we'll add  a block if we an init statement, otherwise we'll just
-            // use the current context to push the while statement.
-
             let condition = stmt.condition.as_ref().map(Expression::from_ast);
-            let init = stmt.init_stmt.as_ref().map(|b| lower_stmt(b));
+            let init_statements = stmt.init_stmt.as_ref().map(|s| lower_stmt(s));
             let block = Block::from_expr_block(&stmt.body);
-            let after = stmt
-                .after_stmt
-                .as_ref()
-                .map(|b| lower_stmt(b))
-                .map(Box::new);
+            let after_statements = stmt.after_stmt.as_ref().map(|s| lower_stmt(s));
+
+            let after = after_statements.and_then(|stmts| {
+                if stmts.is_empty() {
+                    None
+                } else {
+                    Some(Box::new(wrap_statements_as_expression_block(
+                        stmts,
+                        stmt.span.clone(),
+                    )))
+                }
+            });
 
             let inner_loop = match (condition, after) {
                 (Some(condition), None) => Statement::While {
@@ -469,30 +504,34 @@ fn lower_stmt_with_options(
                 },
             };
 
-            match init {
-                Some(init) => {
-                    // use a block
-                    Statement::Expression {
-                        expr: Expression::Block(
-                            Block {
-                                statements: vec![init, inner_loop],
-                                trailing_expr: None,
-                            },
-                            stmt.span.clone(),
-                        ),
-                        span: stmt.span.clone(),
-                    }
+            let statement = if let Some(mut init) = init_statements {
+                if init.is_empty() {
+                    inner_loop
+                } else {
+                    init.push(inner_loop);
+                    wrap_statements_as_expression_block(init, stmt.span.clone())
                 }
-                // just inner loop
-                None => inner_loop,
-            }
+            } else {
+                inner_loop
+            };
+
+            let mut statements = header_context_statements(&stmt.annotations);
+            statements.push(statement);
+            statements
         }
-        ast::Stmt::Break(span) => Statement::Break(span.clone()),
-        ast::Stmt::Continue(span) => Statement::Continue(span.clone()),
+        ast::Stmt::Break(ast::BreakStmt { span, annotations }) => {
+            let statement = Statement::Break(span.clone());
+            maybe_annotated_statement(statement, annotations)
+        }
+        ast::Stmt::Continue(ast::ContinueStmt { span, annotations }) => {
+            let statement = Statement::Continue(span.clone());
+            maybe_annotated_statement(statement, annotations)
+        }
         ast::Stmt::WhileLoop(ast::WhileStmt {
             condition,
             body,
             span,
+            annotations,
         }) => {
             // lowering to HIR is trivial, since HIR maps 1:1 with this.
 
@@ -500,39 +539,52 @@ fn lower_stmt_with_options(
 
             let body = Block::from_expr_block(body);
 
-            Statement::While {
+            let statement = Statement::While {
                 condition,
                 block: body,
                 span: span.clone(),
-            }
+            };
+            maybe_annotated_statement(statement, annotations)
         }
-        ast::Stmt::Assign(ast::AssignStmt { left, expr, span }) => Statement::Assign {
-            left: Expression::from_ast(left),
-            value: Expression::from_ast(expr),
-            span: span.clone(),
-        },
+        ast::Stmt::Assign(ast::AssignStmt {
+            left,
+            expr,
+            span,
+            annotations,
+        }) => {
+            let statement = Statement::Assign {
+                left: Expression::from_ast(left),
+                value: Expression::from_ast(expr),
+                span: span.clone(),
+            };
+            maybe_annotated_statement(statement, annotations)
+        }
         ast::Stmt::AssignOp(ast::AssignOpStmt {
             left,
             assign_op,
             expr,
             span,
-        }) => Statement::AssignOp {
-            left: Expression::from_ast(left),
-            assign_op: match assign_op {
-                ast::AssignOp::AddAssign => hir::AssignOp::AddAssign,
-                ast::AssignOp::SubAssign => hir::AssignOp::SubAssign,
-                ast::AssignOp::MulAssign => hir::AssignOp::MulAssign,
-                ast::AssignOp::DivAssign => hir::AssignOp::DivAssign,
-                ast::AssignOp::ModAssign => hir::AssignOp::ModAssign,
-                ast::AssignOp::BitXorAssign => hir::AssignOp::BitXorAssign,
-                ast::AssignOp::BitAndAssign => hir::AssignOp::BitAndAssign,
-                ast::AssignOp::BitOrAssign => hir::AssignOp::BitOrAssign,
-                ast::AssignOp::ShlAssign => hir::AssignOp::ShlAssign,
-                ast::AssignOp::ShrAssign => hir::AssignOp::ShrAssign,
-            },
-            value: Expression::from_ast(expr),
-            span: span.clone(),
-        },
+            annotations,
+        }) => {
+            let statement = Statement::AssignOp {
+                left: Expression::from_ast(left),
+                assign_op: match assign_op {
+                    ast::AssignOp::AddAssign => hir::AssignOp::AddAssign,
+                    ast::AssignOp::SubAssign => hir::AssignOp::SubAssign,
+                    ast::AssignOp::MulAssign => hir::AssignOp::MulAssign,
+                    ast::AssignOp::DivAssign => hir::AssignOp::DivAssign,
+                    ast::AssignOp::ModAssign => hir::AssignOp::ModAssign,
+                    ast::AssignOp::BitXorAssign => hir::AssignOp::BitXorAssign,
+                    ast::AssignOp::BitAndAssign => hir::AssignOp::BitAndAssign,
+                    ast::AssignOp::BitOrAssign => hir::AssignOp::BitOrAssign,
+                    ast::AssignOp::ShlAssign => hir::AssignOp::ShlAssign,
+                    ast::AssignOp::ShrAssign => hir::AssignOp::ShrAssign,
+                },
+                value: Expression::from_ast(expr),
+                span: span.clone(),
+            };
+            maybe_annotated_statement(statement, annotations)
+        }
         ast::Stmt::Let(ast::LetStmt {
             identifier,
             is_mutable,
@@ -545,18 +597,31 @@ fn lower_stmt_with_options(
             let lifted_expr = Expression::from_ast(expr);
             let annotated_type = annotation.as_ref().map(type_ir_from_ast);
 
-            let watch_spec = if *is_watched {
-                let var_name = identifier.to_string();
+            let var_name = identifier.to_string();
+            let mut watch_spec = if *is_watched {
                 // Create default watch spec - runtime WatchOptions statements will modify it
-                let spec = WatchSpec::default_for_variable(var_name.clone(), span.clone());
-                Some(spec)
+                Some(WatchSpec::default_for_variable(
+                    var_name.clone(),
+                    span.clone(),
+                ))
             } else {
                 None
             };
 
+            if let Some(spec) = watch_spec.as_mut() {
+                if let Some((channel, when)) = watch_options.get(&var_name) {
+                    if let Some(channel_name) = channel {
+                        spec.name = channel_name.clone();
+                    }
+                    if let Some(when) = when.clone() {
+                        spec.when = when;
+                    }
+                }
+            }
+
             let statement = if *is_mutable {
                 Statement::DeclareAndAssign {
-                    name: identifier.to_string(),
+                    name: var_name.clone(),
                     value: lifted_expr,
                     annotated_type,
                     watch: watch_spec,
@@ -564,7 +629,7 @@ fn lower_stmt_with_options(
                 }
             } else {
                 Statement::Let {
-                    name: identifier.to_string(),
+                    name: var_name.clone(),
                     value: lifted_expr,
                     annotated_type,
                     watch: watch_spec,
@@ -606,36 +671,66 @@ fn lower_stmt_with_options(
             };
             maybe_annotated_statement(statement, annotated_comments)
         }
-        ast::Stmt::Semicolon(expr) => Statement::Semicolon {
-            expr: Expression::from_ast(expr),
-            span: expr.span().clone(),
-        },
-        ast::Stmt::Return(ReturnStmt { value, span }) => Statement::Return {
-            expr: Expression::from_ast(value),
-            span: span.clone(),
-        },
-        ast::Stmt::Assert(AssertStmt { value, span }) => Statement::Assert {
-            condition: Expression::from_ast(value),
-            span: span.clone(),
-        },
+        ast::Stmt::Semicolon(ast::ExprStmt {
+            expr,
+            span,
+            annotations: annotated_comments,
+        }) => {
+            let statement = Statement::Semicolon {
+                expr: Expression::from_ast(expr),
+                span: span.clone(),
+            };
+            maybe_annotated_statement(statement, annotated_comments)
+        }
+        ast::Stmt::Return(ReturnStmt {
+            value,
+            span,
+            annotations,
+        }) => {
+            let statement = Statement::Return {
+                expr: Expression::from_ast(value),
+                span: span.clone(),
+            };
+            maybe_annotated_statement(statement, annotations)
+        }
+        ast::Stmt::Assert(AssertStmt {
+            value,
+            span,
+            annotations,
+        }) => {
+            let statement = Statement::Assert {
+                condition: Expression::from_ast(value),
+                span: span.clone(),
+            };
+            maybe_annotated_statement(statement, annotations)
+        }
         ast::Stmt::WatchOptions(ast::WatchOptionsStmt {
             variable,
             options_expr,
             span,
+            annotations,
         }) => {
             // Extract name and when from the WatchOptions expression
             let (channel, when) = extract_watch_options_fields(options_expr);
-            Statement::WatchOptions {
+            let statement = Statement::WatchOptions {
                 variable: variable.to_string(),
                 channel,
                 when,
                 span: span.clone(),
-            }
+            };
+            maybe_annotated_statement(statement, annotations)
         }
-        ast::Stmt::WatchNotify(ast::WatchNotifyStmt { variable, span }) => Statement::WatchNotify {
-            variable: variable.to_string(),
-            span: span.clone(),
-        },
+        ast::Stmt::WatchNotify(ast::WatchNotifyStmt {
+            variable,
+            span,
+            annotations,
+        }) => {
+            let statement = Statement::WatchNotify {
+                variable: variable.to_string(),
+                span: span.clone(),
+            };
+            maybe_annotated_statement(statement, annotations)
+        }
     }
 }
 

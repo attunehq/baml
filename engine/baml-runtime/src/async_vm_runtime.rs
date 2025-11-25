@@ -16,7 +16,7 @@ use std::{
 use anyhow::{anyhow, Context};
 use baml_compiler::{
     self,
-    watch::{self, shared_noop_handler, SharedWatchHandler},
+    watch::{self, SharedWatchHandler},
 };
 use baml_ids::FunctionCallId;
 use baml_types::{tracing::events::HTTPRequest, BamlMap, BamlValue, BamlValueWithMeta, Completion};
@@ -92,11 +92,11 @@ impl BamlAsyncVmRuntime {
             .get(function_name)
             .map(|(index, _)| *index)
         else {
-            return println!("function not found: {function_name}");
+            return eprintln!("function not found: {function_name}");
         };
 
         let baml_vm::Object::Function(function) = &self.program.objects[index] else {
-            return println!("not a function: {function_name}");
+            return eprintln!("not a function: {function_name}");
         };
 
         baml_vm::debug::disassemble(
@@ -347,38 +347,63 @@ impl BamlAsyncVmRuntime {
                     }
                 }
 
-                Ok(VmExecState::Notify(nodes)) => {
-                    for node in nodes {
-                        let state = vm.watch.root_state(node).unwrap();
-                        let baml_vm::watch::NodeId::LocalVar(stack_index) = node else {
-                            break 'mainloop Err(anyhow!("expected local variable notification, got object notification {:?}", node));
-                        };
-                        let (watched_var_name, function_name) =
-                            vm.watched_vars.get(&stack_index).unwrap();
-                        baml_log::debug!("[VM] Notify: {}", &state.channel);
+                Ok(VmExecState::Notify(notification)) => {
+                    log::debug!("[VM] Notify: {notification:?}");
+                    match notification {
+                        baml_vm::vm::WatchNotification::Variables(nodes) => {
+                            for node in nodes {
+                                let state = vm.watch.root_state(node).unwrap();
+                                let baml_vm::watch::NodeId::LocalVar(stack_index) = node else {
+                                    break 'mainloop Err(anyhow!("expected local variable notification, got object notification {:?}", node));
+                                };
+                                let (watched_var_name, function_name) =
+                                    vm.watched_vars.get(&stack_index).unwrap();
+                                baml_log::debug!("[VM] Notify: {}", &state.channel);
 
-                        let fake_meta = watch::WatchValueMetadata {
-                            constraints: Vec::new(),
-                            response_checks: Vec::new(),
-                            completion: Completion::default(),
-                            r#type: baml_types::TypeIR::Top(Default::default()),
-                        };
+                                let fake_meta = watch::WatchValueMetadata {
+                                    constraints: Vec::new(),
+                                    response_checks: Vec::new(),
+                                    completion: Completion::default(),
+                                    r#type: baml_types::TypeIR::Top(Default::default()),
+                                };
 
-                        let current_value =
-                            try_baml_value_from_vm_value(&vm, &state.value).unwrap();
+                                let current_value =
+                                    try_baml_value_from_vm_value(&vm, &state.value).unwrap();
 
-                        let baml_value_with_meta =
-                            BamlValueWithMeta::with_const_meta(&current_value, fake_meta);
+                                let baml_value_with_meta =
+                                    BamlValueWithMeta::with_same_meta_at_all_nodes(
+                                        &current_value,
+                                        fake_meta,
+                                    );
 
-                        let notification = watch::WatchNotification::new_var(
-                            watched_var_name.to_owned(), // variable name
-                            state.channel.to_owned(),    // channel name
-                            baml_value_with_meta,
-                            function_name.to_owned(),
-                        );
+                                let notification = watch::WatchNotification::new_var(
+                                    watched_var_name.to_owned(), // variable name
+                                    state.channel.to_owned(),    // channel name
+                                    baml_value_with_meta,
+                                    function_name.to_owned(),
+                                );
 
-                        if let Some(handler) = &watch_handler {
-                            handler.lock().unwrap().notify(notification);
+                                if let Some(handler) = watch_handler.as_ref() {
+                                    if let Ok(mut handler) = handler.lock() {
+                                        handler.notify(notification);
+                                    }
+                                }
+                            }
+                        }
+                        baml_vm::vm::WatchNotification::Block(notification) => {
+                            if let Some(handler) = watch_handler.as_ref() {
+                                if let Ok(mut handler) = handler.lock() {
+                                    let header = baml_compiler::hir::HeaderContext {
+                                        level: notification.level as u8,
+                                        title: notification.block_name.clone(),
+                                        span: internal_baml_core::ast::Span::fake(),
+                                    };
+                                    handler.notify(watch::WatchNotification::new_block(
+                                        header,
+                                        notification.function_name.clone(),
+                                    ));
+                                }
+                            }
                         }
                     }
                 }
@@ -493,10 +518,9 @@ impl BamlAsyncVmRuntime {
                             // except for compilation required types, spawn and
                             // spawn_local are essentially equivalent.
                             #[cfg(target_arch = "wasm32")]
-                            tokio::task::spawn_local(future);
+                            wasm_bindgen_futures::spawn_local(future);
                         }
 
-                        // TODO: Needs refactor, prepare for some convoluted logic ahead ;)
                         baml_vm::FutureKind::Net => {
                             // Only `baml.fetch_as` is supported for now.
                             if pending_future.function != "baml.fetch_as" {
@@ -676,8 +700,8 @@ impl BamlAsyncVmRuntime {
 
                                         if status.is_client_error() || status.is_server_error() {
                                             break 'res Err(anyhow::anyhow!(
-                                                "baml.fetch_as: HTTP request failed: HTTP {status}\nBody: {body}"
-                                            ));
+                                            "baml.fetch_as: HTTP request failed: HTTP {status}\nBody: {body}"
+                                        ));
                                         }
 
                                         jsonish::from_str(
@@ -775,10 +799,11 @@ impl BamlAsyncVmRuntime {
             }
         };
 
-        let response_baml_value = ResponseBamlValue(BamlValueWithMeta::with_const_meta(
-            &baml_value,
-            ResponseValueMeta(vec![], vec![], Completion::default(), output_type),
-        ));
+        let response_baml_value =
+            ResponseBamlValue(BamlValueWithMeta::with_same_meta_at_all_nodes(
+                &baml_value,
+                ResponseValueMeta(vec![], vec![], Completion::default(), output_type),
+            ));
 
         let final_result = Ok(FunctionResult::new(
             OrchestrationScope { scope: vec![] },
@@ -1355,6 +1380,16 @@ impl crate::runtime_interface::InternalRuntimeInterface for BamlAsyncVmRuntime {
         ctx: &crate::runtime_context::RuntimeContext,
     ) -> anyhow::Result<String> {
         self.llm_runtime.function_graph(function_name, ctx)
+    }
+
+    fn function_graph_v2(
+        &self,
+        function_name: &str,
+        ctx: &crate::runtime_context::RuntimeContext,
+    ) -> anyhow::Result<crate::control_flow::ControlFlowVisualization> {
+        let result = self.llm_runtime.function_graph_v2(function_name, ctx);
+        log::info!("function_graph_v2({function_name}, ctx) => {:#?}", result);
+        result
     }
 
     fn get_function<'ir>(

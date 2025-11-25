@@ -72,7 +72,7 @@ impl<Meta: Clone> PropertyHandler<Meta> {
     }
 
     pub fn print_options(&self) {
-        println!(
+        eprintln!(
             "options: {:#?}",
             self.options
                 .iter()
@@ -673,15 +673,13 @@ impl<Meta: Clone> PropertyHandler<Meta> {
                                     find_best_match(unrecognized_field, &["total_timeout_ms"])
                                 {
                                     format!(
-                                        "Unrecognized field '{}' in http configuration block. Did you mean '{}'? \
-                                        Composite clients (fallback/round-robin) only support: total_timeout_ms",
-                                        unrecognized_field, suggestion
+                                        "Unrecognized field '{unrecognized_field}' in http configuration block. Did you mean '{suggestion}'? \
+                                        Composite clients (fallback/round-robin) only support: total_timeout_ms"
                                     )
                                 } else {
                                     format!(
-                                        "Unrecognized field '{}' in http configuration block. \
-                                        Composite clients (fallback/round-robin) only support: total_timeout_ms",
-                                        unrecognized_field
+                                        "Unrecognized field '{unrecognized_field}' in http configuration block. \
+                                        Composite clients (fallback/round-robin) only support: total_timeout_ms"
                                     )
                                 }
                             } else {
@@ -705,23 +703,20 @@ impl<Meta: Clone> PropertyHandler<Meta> {
                                 {
                                     if suggestion == "total_timeout_ms" {
                                         format!(
-                                            "Unrecognized field '{}' in http configuration block. \
+                                            "Unrecognized field '{unrecognized_field}' in http configuration block. \
                                             Did you mean 'total_timeout_ms'? Note: 'total_timeout_ms' is only \
-                                            available for composite clients (fallback/round-robin)",
-                                            unrecognized_field
+                                            available for composite clients (fallback/round-robin)"
                                         )
                                     } else {
                                         format!(
-                                            "Unrecognized field '{}' in http configuration block. Did you mean '{}'?",
-                                            unrecognized_field, suggestion
+                                            "Unrecognized field '{unrecognized_field}' in http configuration block. Did you mean '{suggestion}'?"
                                         )
                                     }
                                 } else {
                                     format!(
-                                        "Unrecognized field '{}' in http configuration block. \
+                                        "Unrecognized field '{unrecognized_field}' in http configuration block. \
                                         Supported timeout fields are: connect_timeout_ms, request_timeout_ms, \
-                                        time_to_first_token_timeout_ms, idle_timeout_ms",
-                                        unrecognized_field
+                                        time_to_first_token_timeout_ms, idle_timeout_ms"
                                     )
                                 }
                             };
@@ -737,7 +732,7 @@ impl<Meta: Clone> PropertyHandler<Meta> {
                             http_config.connect_timeout_ms = Some(10_000); // 10s default
                         }
                         if http_config.request_timeout_ms.is_none() {
-                            http_config.request_timeout_ms = Some(30_000); // 30s default
+                            http_config.request_timeout_ms = Some(60_000 * 5); // 5 minutes default
                         }
                         // Streaming timeouts have no defaults - they're opt-in
                     }
@@ -754,7 +749,7 @@ impl<Meta: Clone> PropertyHandler<Meta> {
                     let mut http_config = HttpConfig::default();
                     if provider_type != "fallback" && provider_type != "round-robin" {
                         http_config.connect_timeout_ms = Some(10_000);
-                        http_config.request_timeout_ms = Some(30_000);
+                        http_config.request_timeout_ms = Some(60_000 * 5); // 5 minutes
                     }
                     http_config
                 }
@@ -764,7 +759,7 @@ impl<Meta: Clone> PropertyHandler<Meta> {
             let mut http_config = HttpConfig::default();
             if provider_type != "fallback" && provider_type != "round-robin" {
                 http_config.connect_timeout_ms = Some(10_000);
-                http_config.request_timeout_ms = Some(30_000);
+                http_config.request_timeout_ms = Some(60_000 * 5); // 5 minutes
             }
             http_config
         }
@@ -948,10 +943,7 @@ fn ensure_int<Meta: Clone>(
 // Helper function to validate timeout values
 fn validate_timeout_value(value: i64, field_name: &str) -> Result<(), String> {
     if value < 0 {
-        return Err(format!(
-            "{} must be non-negative, got: {}ms",
-            field_name, value
-        ));
+        return Err(format!("{field_name} must be non-negative, got: {value}ms"));
     }
     // 0 means infinite timeout (no timeout) - explicitly allowed
     // Any non-negative value is valid according to the updated spec

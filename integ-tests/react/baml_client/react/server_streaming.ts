@@ -2732,6 +2732,25 @@ export const TestAwsInvalidSessionToken = async (
 };
 
 /**
+ * Executes the streaming variant of the "TestAwsVideoDescribe" BAML action.
+ *
+ * This action initiates a streaming response by calling the corresponding
+ * BAML stream function. The returned stream yields incremental updates.
+ *
+ * @param { Video } video_input - Input parameter.
+ *
+ * @returns {ReadableStream<Uint8Array>} A stream that yields incremental updates from the action.
+ */
+export const TestAwsVideoDescribe = async (
+  video_input: Video,
+): Promise<ReadableStream<Uint8Array>> => {
+  const stream = b.stream.TestAwsVideoDescribe(
+    video_input,
+  );
+  return Promise.resolve(stream.toStreamable());
+};
+
+/**
  * Executes the streaming variant of the "TestAzure" BAML action.
  *
  * This action initiates a streaming response by calling the corresponding
@@ -2901,6 +2920,25 @@ export const TestCaching = async (
   const stream = b.stream.TestCaching(
     input,
     not_cached,
+  );
+  return Promise.resolve(stream.toStreamable());
+};
+
+/**
+ * Executes the streaming variant of the "TestDefaultStreamingTimeout" BAML action.
+ *
+ * This action initiates a streaming response by calling the corresponding
+ * BAML stream function. The returned stream yields incremental updates.
+ *
+ * @param { string } input - Input parameter.
+ *
+ * @returns {ReadableStream<Uint8Array>} A stream that yields incremental updates from the action.
+ */
+export const TestDefaultStreamingTimeout = async (
+  input: string,
+): Promise<ReadableStream<Uint8Array>> => {
+  const stream = b.stream.TestDefaultStreamingTimeout(
+    input,
   );
   return Promise.resolve(stream.toStreamable());
 };

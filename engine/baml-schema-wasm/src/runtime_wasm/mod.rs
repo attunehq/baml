@@ -4,12 +4,13 @@ use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use baml_compiler::watch::shared_handler;
-// Conditional runtime selection based on the "interpreter" feature flag
-#[cfg(feature = "interpreter")]
+// Conditional runtime selection based on the "thir-interpreter" feature flag
+#[cfg(feature = "thir-interpreter")]
 pub use baml_runtime::async_interpreter_runtime::BamlAsyncInterpreterRuntime as CoreBamlRuntime;
-#[cfg(not(feature = "interpreter"))]
+#[cfg(not(feature = "thir-interpreter"))]
 pub use baml_runtime::async_vm_runtime::BamlAsyncVmRuntime as CoreBamlRuntime;
 use baml_runtime::{
+    control_flow::{ControlFlowVisualization, NodeType as RuntimeNodeType},
     internal::{
         llm_client::{
             orchestrator::{ExecutionScope, OrchestrationScope, OrchestratorNode},
@@ -373,6 +374,94 @@ impl WasmSpan {
     }
 }
 
+#[wasm_bindgen]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WasmControlFlowNodeType {
+    FunctionRoot,
+    HeaderContextEnter,
+    BranchGroup,
+    BranchArm,
+    Loop,
+    OtherScope,
+}
+
+#[wasm_bindgen(getter_with_clone, inspectable)]
+#[derive(Clone, Debug)]
+pub struct WasmControlFlowNode {
+    #[wasm_bindgen(readonly)]
+    pub id: u32,
+    #[wasm_bindgen(readonly)]
+    pub parent_id: Option<u32>,
+    #[wasm_bindgen(readonly)]
+    pub lexical_id: String,
+    #[wasm_bindgen(readonly)]
+    pub label: String,
+    #[wasm_bindgen(readonly)]
+    pub span: WasmSpan,
+    #[wasm_bindgen(readonly)]
+    pub node_type: WasmControlFlowNodeType,
+}
+
+#[wasm_bindgen(getter_with_clone, inspectable)]
+#[derive(Clone, Debug)]
+pub struct WasmControlFlowEdge {
+    #[wasm_bindgen(readonly)]
+    pub src: u32,
+    #[wasm_bindgen(readonly)]
+    pub dst: u32,
+}
+
+#[wasm_bindgen(getter_with_clone, inspectable)]
+#[derive(Clone, Debug, Default)]
+pub struct WasmControlFlowGraph {
+    #[wasm_bindgen(readonly)]
+    pub nodes: Vec<WasmControlFlowNode>,
+    #[wasm_bindgen(readonly)]
+    pub edges: Vec<WasmControlFlowEdge>,
+}
+
+impl From<&RuntimeNodeType> for WasmControlFlowNodeType {
+    fn from(value: &RuntimeNodeType) -> Self {
+        match value {
+            RuntimeNodeType::FunctionRoot => WasmControlFlowNodeType::FunctionRoot,
+            RuntimeNodeType::HeaderContextEnter => WasmControlFlowNodeType::HeaderContextEnter,
+            RuntimeNodeType::BranchGroup => WasmControlFlowNodeType::BranchGroup,
+            RuntimeNodeType::BranchArm => WasmControlFlowNodeType::BranchArm,
+            RuntimeNodeType::Loop => WasmControlFlowNodeType::Loop,
+            RuntimeNodeType::OtherScope => WasmControlFlowNodeType::OtherScope,
+        }
+    }
+}
+
+impl From<ControlFlowVisualization> for WasmControlFlowGraph {
+    fn from(viz: ControlFlowVisualization) -> Self {
+        let nodes = viz
+            .nodes
+            .values()
+            .map(|node| WasmControlFlowNode {
+                id: node.id.raw(),
+                parent_id: node.parent_node_id.map(|id| id.raw()),
+                lexical_id: node.lexical_id.clone(),
+                label: node.label.clone(),
+                span: (&node.span).into(),
+                node_type: WasmControlFlowNodeType::from(&node.node_type),
+            })
+            .collect();
+
+        let edges = viz
+            .edges_by_src
+            .values()
+            .flat_map(|edges| edges.iter())
+            .map(|edge| WasmControlFlowEdge {
+                src: edge.src.raw(),
+                dst: edge.dst.raw(),
+            })
+            .collect();
+
+        WasmControlFlowGraph { nodes, edges }
+    }
+}
+
 #[wasm_bindgen(getter_with_clone, inspectable)]
 #[derive(Clone, Debug)]
 pub struct WasmGeneratorConfig {
@@ -675,7 +764,7 @@ impl WasmTestResponse {
                 if let Some(expr_response) = &test_response.expr_function_response {
                     log::debug!(
                         "[BAML parsed_response_impl] Found expr_function_response: {:?}",
-                        expr_response.as_ref().map(|v| format!("{:?}", v))
+                        expr_response.as_ref().map(|v| format!("{v:?}"))
                     );
                     match expr_response {
                         Ok(value) => {
@@ -685,7 +774,7 @@ impl WasmTestResponse {
                             Ok(value)
                         }
                         Err(e) => {
-                            log::debug!("[BAML parsed_response_impl] Expr function error: {}", e);
+                            log::debug!("[BAML parsed_response_impl] Expr function error: {e}");
                             Err(anyhow::anyhow!("Expr function error: {}", e))
                         }
                     }
@@ -1006,7 +1095,10 @@ impl WasmRuntime {
 
                 let wasm_span = match f.span() {
                     Some(span) => span.into(),
-                    None => WasmSpan::default(),
+                    None => {
+                        log::warn!("[WasmRuntime] Missing span for function {}", f.name());
+                        WasmSpan::default()
+                    }
                 };
 
                 WasmFunction {
@@ -1896,10 +1988,15 @@ impl WasmRuntime {
                             baml_compiler::watch::WatchBamlValue::Value(v) => {
                                 let value: BamlValue = v.clone().into();
                                 serde_json::to_string(&value)
-                                    .unwrap_or_else(|_| format!("{:?}", value))
+                                    .unwrap_or_else(|_| format!("{value:?}"))
                             }
-                            baml_compiler::watch::WatchBamlValue::Block(s) => {
-                                serde_json::json!({ "type": "block", "label": s }).to_string()
+                            baml_compiler::watch::WatchBamlValue::Header(header) => {
+                                serde_json::json!({
+                                    "type": "header",
+                                    "label": header.title,
+                                    "level": header.level,
+                                })
+                                .to_string()
                             }
                             baml_compiler::watch::WatchBamlValue::StreamStart(id) => {
                                 serde_json::json!({ "type": "stream_start", "id": id }).to_string()
@@ -1907,7 +2004,7 @@ impl WasmRuntime {
                             baml_compiler::watch::WatchBamlValue::StreamUpdate(id, v) => {
                                 let value: BamlValue = v.clone().into();
                                 let value_json = serde_json::to_string(&value)
-                                    .unwrap_or_else(|_| format!("{:?}", value));
+                                    .unwrap_or_else(|_| format!("{value:?}"));
                                 serde_json::json!({ "type": "stream_update", "id": id, "value": value_json }).to_string()
                             }
                             baml_compiler::watch::WatchBamlValue::StreamEnd(id) => {
@@ -2005,10 +2102,9 @@ fn js_fn_to_baml_src_reader(get_baml_src_cb: js_sys::Function) -> BamlSrcReader 
 
                 let adjusted_path =
                     if is_windows && (path.starts_with("../") || path.starts_with("./")) {
-                        let result = format!("baml_src/{}", path);
+                        let result = format!("baml_src/{path}");
                         web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
-                            "WASM Windows path fix applied: '{}' → '{}'",
-                            path, result
+                            "WASM Windows path fix applied: '{path}' → '{result}'"
                         )));
                         result
                     } else {
@@ -2335,18 +2431,21 @@ impl WasmFunction {
             let value_json = match &notification.value {
                 baml_compiler::watch::WatchBamlValue::Value(v) => {
                     let value: BamlValue = v.clone().into();
-                    serde_json::to_string(&value).unwrap_or_else(|_| format!("{:?}", value))
+                    serde_json::to_string(&value).unwrap_or_else(|_| format!("{value:?}"))
                 }
-                baml_compiler::watch::WatchBamlValue::Block(s) => {
-                    serde_json::json!({ "type": "block", "label": s }).to_string()
-                }
+                baml_compiler::watch::WatchBamlValue::Header(header) => serde_json::json!({
+                    "type": "header",
+                    "label": header.title,
+                    "level": header.level,
+                })
+                .to_string(),
                 baml_compiler::watch::WatchBamlValue::StreamStart(id) => {
                     serde_json::json!({ "type": "stream_start", "id": id }).to_string()
                 }
                 baml_compiler::watch::WatchBamlValue::StreamUpdate(id, v) => {
                     let value: BamlValue = v.clone().into();
                     let value_json =
-                        serde_json::to_string(&value).unwrap_or_else(|_| format!("{:?}", value));
+                        serde_json::to_string(&value).unwrap_or_else(|_| format!("{value:?}"));
                     serde_json::json!({ "type": "stream_update", "id": id, "value": value_json })
                         .to_string()
                 }
@@ -2520,18 +2619,21 @@ impl WasmFunction {
             let value_json = match &notification.value {
                 baml_compiler::watch::WatchBamlValue::Value(v) => {
                     let value: BamlValue = v.clone().into();
-                    serde_json::to_string(&value).unwrap_or_else(|_| format!("{:?}", value))
+                    serde_json::to_string(&value).unwrap_or_else(|_| format!("{value:?}"))
                 }
-                baml_compiler::watch::WatchBamlValue::Block(s) => {
-                    serde_json::json!({ "type": "block", "label": s }).to_string()
-                }
+                baml_compiler::watch::WatchBamlValue::Header(header) => serde_json::json!({
+                    "type": "header",
+                    "label": header.title,
+                    "level": header.level,
+                })
+                .to_string(),
                 baml_compiler::watch::WatchBamlValue::StreamStart(id) => {
                     serde_json::json!({ "type": "stream_start", "id": id }).to_string()
                 }
                 baml_compiler::watch::WatchBamlValue::StreamUpdate(id, v) => {
                     let value: BamlValue = v.clone().into();
                     let value_json =
-                        serde_json::to_string(&value).unwrap_or_else(|_| format!("{:?}", value));
+                        serde_json::to_string(&value).unwrap_or_else(|_| format!("{value:?}"));
                     serde_json::json!({ "type": "stream_update", "id": id, "value": value_json })
                         .to_string()
                 }
@@ -2614,6 +2716,28 @@ impl WasmFunction {
             graph.len()
         );
         Ok(graph)
+    }
+
+    #[wasm_bindgen]
+    pub fn function_graph_v2(&self, rt: &WasmRuntime) -> Result<WasmControlFlowGraph, JsValue> {
+        let rt = &rt.runtime;
+        let ctx = rt
+            .create_ctx_manager(BamlValue::String("wasm".to_string()), None)
+            .create_ctx_with_default();
+        log::info!(
+            "[wasm::function_graph_v2]: generating graph for function {}",
+            self.name
+        );
+        let graph = rt
+            .internal()
+            .function_graph_v2(&self.name, &ctx)
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
+        log::info!(
+            "[wasm::function_graph_v2]: {} graph: {:#?}",
+            self.name,
+            graph
+        );
+        Ok(graph.into())
     }
 
     pub fn orchestration_graph(&self, rt: &WasmRuntime) -> Result<Vec<WasmScope>, JsValue> {

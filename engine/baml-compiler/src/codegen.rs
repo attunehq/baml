@@ -151,6 +151,7 @@ fn compile_thir_to_bytecode(
             kind: FunctionKind::Llm,
             locals_in_scope: vec![func.parameters.iter().map(|p| p.name.clone()).collect()],
             span: func.span.clone(),
+            block_notifications: Vec::new(),
         });
 
         let object_index = objects.insert(bytecode_llm_function);
@@ -234,6 +235,7 @@ fn compile_thir_to_bytecode(
             kind: FunctionKind::Native(func),
             locals_in_scope: vec![], // TODO.
             span: Span::fake_builtin_baml(),
+            block_notifications: Vec::new(),
         });
 
         let object_index = objects.insert(native_function);
@@ -246,6 +248,7 @@ fn compile_thir_to_bytecode(
         kind: FunctionKind::Future,
         locals_in_scope: vec![],
         span: Span::fake_builtin_baml(),
+        block_notifications: Vec::new(),
     }))));
 
     let mut resolved_class_names = HashMap::new();
@@ -430,6 +433,9 @@ struct HirCompiler<'g> {
     /// `AllocInstance` instructions that have a placeholder, which must be resolved when location
     /// of the class object is resolved.
     class_alloc_patch_list: &'g mut Vec<AllocInstancePatch>,
+
+    /// Block notifications for the current function being compiled.
+    block_notifications: Vec<baml_vm::bytecode::BlockNotification>,
 }
 
 #[derive(Debug)]
@@ -469,6 +475,7 @@ impl<'g> HirCompiler<'g> {
             scopes: Vec::new(),
             current_source_line: 0,
             locals_in_scope: Vec::new(),
+            block_notifications: Vec::new(),
         }
     }
 
@@ -507,6 +514,7 @@ impl<'g> HirCompiler<'g> {
             })),
 
             span: func.span.clone(),
+            block_notifications: self.block_notifications.clone(),
         })
     }
 
@@ -548,8 +556,8 @@ impl<'g> HirCompiler<'g> {
     /// A statement is anything that does not produce a value by itself.
     fn compile_statement(&mut self, statement: &thir::Statement<(Span, Option<TypeIR>)>) {
         match statement {
-            thir::Statement::AnnotatedStatement { headers, statement } => {
-                // TODO
+            thir::Statement::HeaderContextEnter(header) => {
+                self.emit_annotated_block(header);
             }
             thir::Statement::Let { name, value, .. } => {
                 self.compile_expression(value);
@@ -727,12 +735,13 @@ impl<'g> HirCompiler<'g> {
                                 panic!("undefined function: {name}");
                             }
                         }
+                        WatchWhen::Never => {}
 
                         WatchWhen::Manual => {
                             self.emit_string_literal("manual");
                         }
 
-                        WatchWhen::True => {
+                        WatchWhen::Auto => {
                             let index = self.add_constant(Value::Null);
                             self.emit(Instruction::LoadConst(index));
                         }
@@ -940,17 +949,21 @@ impl<'g> HirCompiler<'g> {
 
                 self.emit_string_literal(channel.as_ref().unwrap_or(variable).as_str()); // This adds LoadConst
 
-                match when.as_ref().map(String::as_str) {
-                    Some("manual") => {
+                match when.as_ref() {
+                    Some(WatchWhen::Manual) => {
                         self.emit_string_literal("manual");
                     }
 
-                    Some("never") => {
+                    Some(WatchWhen::Never) => {
                         self.emit_string_literal("never");
                     }
 
-                    Some(fn_name) => {
-                        if let Some(&index) = self.globals.get(fn_name) {
+                    Some(WatchWhen::Auto) => {
+                        // No action needed.
+                    }
+
+                    Some(WatchWhen::FunctionName(fn_name)) => {
+                        if let Some(&index) = self.globals.get(fn_name.name()) {
                             self.emit(Instruction::LoadGlobal(index));
                         } else {
                             panic!("watch options codegen: undefined function: {fn_name}");
@@ -965,8 +978,12 @@ impl<'g> HirCompiler<'g> {
 
                 self.emit(Instruction::Watch(local_index));
             }
-            thir::Statement::WatchNotify { .. } => {
-                // todo!("bytecode codegen for manual notification trigger")
+            thir::Statement::WatchNotify { variable, .. } => {
+                let Some(local_index) = self.locals.get(variable).copied() else {
+                    panic!("watch codegen error: undefined variable: {variable}");
+                };
+
+                self.emit(Instruction::Notify(local_index));
             }
         }
     }
@@ -1266,6 +1283,10 @@ impl<'g> HirCompiler<'g> {
 
                     Some(TypeIR::Map(_, _, _)) => format!("baml.Map.{method}"),
 
+                    Some(TypeIR::Primitive(TypeValue::String, _)) => {
+                        format!("baml.String.{method}")
+                    }
+
                     Some(TypeIR::Primitive(TypeValue::Media(media_type), _)) => {
                         let subtype = match media_type {
                             BamlMediaType::Image => "baml.media.image",
@@ -1564,6 +1585,26 @@ impl<'g> HirCompiler<'g> {
         // Add a constant that points to the string object
         let const_index = self.add_constant(Value::Object(object_index));
         self.emit(Instruction::LoadConst(const_index));
+    }
+
+    fn emit_annotated_block(&mut self, header: &hir::HeaderContext) {
+        // Create the notification metadata
+        let notification = baml_vm::bytecode::BlockNotification {
+            function_name: String::new(), // Will be populated at runtime from Function::name
+            block_name: header.title.clone(),
+            level: header.level as usize,
+            block_type: baml_vm::bytecode::BlockNotificationType::Statement,
+            is_enter: true,
+        };
+
+        // Add to the function's notification list
+        let notification_index = self.block_notifications.len();
+        self.block_notifications.push(notification);
+
+        // Emit instruction with just the index
+        self.emit(Instruction::NotifyBlock(notification_index));
+
+        // TODO: Emit exit notification when leaving the block
     }
 
     /// Emits a single instruction and returns the index of the instruction.

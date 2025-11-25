@@ -102,10 +102,10 @@ impl BamlAsyncInterpreterRuntime {
             .iter()
             .find(|f| f.name == function_name)
         {
-            println!("THIR for expression function '{function_name}':");
-            println!("{}", expr_fn.body.dump_str());
+            eprintln!("THIR for expression function '{function_name}':");
+            eprintln!("{}", expr_fn.body.dump_str());
         } else {
-            println!("Function '{function_name}' not found or is not an expression function");
+            eprintln!("Function '{function_name}' not found or is not an expression function");
         }
     }
 
@@ -493,10 +493,11 @@ impl BamlAsyncInterpreterRuntime {
             }
         };
 
-        let response_baml_value = ResponseBamlValue(BamlValueWithMeta::with_const_meta(
-            &baml_value,
-            ResponseValueMeta(vec![], vec![], Completion::default(), output_type),
-        ));
+        let response_baml_value =
+            ResponseBamlValue(BamlValueWithMeta::with_same_meta_at_all_nodes(
+                &baml_value,
+                ResponseValueMeta(vec![], vec![], Completion::default(), output_type),
+            ));
 
         let final_result = Ok(FunctionResult::new(
             OrchestrationScope { scope: vec![] },
@@ -937,6 +938,14 @@ impl crate::runtime_interface::InternalRuntimeInterface for BamlAsyncInterpreter
         ctx: &crate::runtime_context::RuntimeContext,
     ) -> Result<String> {
         self.llm_runtime.function_graph(function_name, ctx)
+    }
+
+    fn function_graph_v2(
+        &self,
+        function_name: &str,
+        ctx: &crate::runtime_context::RuntimeContext,
+    ) -> Result<crate::control_flow::ControlFlowVisualization> {
+        self.llm_runtime.function_graph_v2(function_name, ctx)
     }
 
     fn get_function<'ir>(

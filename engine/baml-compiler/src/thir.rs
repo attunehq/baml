@@ -3,8 +3,8 @@
 use baml_types::ir_type::TypeIR;
 
 use crate::{
-    hir::{self, AssignOp, BinaryOperator, LlmFunction, UnaryOperator},
-    watch::WatchSpec,
+    hir::{self, AssignOp, BinaryOperator, HeaderContext, LlmFunction, UnaryOperator},
+    watch::{WatchSpec, WatchWhen},
 };
 
 pub mod interpret;
@@ -711,7 +711,7 @@ pub enum Statement<T> {
     WatchOptions {
         variable: String,
         channel: Option<String>,
-        when: Option<String>,
+        when: Option<WatchWhen>,
         span: Span,
     },
 
@@ -720,12 +720,7 @@ pub enum Statement<T> {
         variable: String,
         span: Span,
     },
-
-    /// Annotations that apply to the statement.
-    AnnotatedStatement {
-        headers: Vec<String>,
-        statement: Option<Box<Statement<T>>>,
-    },
+    HeaderContextEnter(HeaderContext),
 }
 
 impl<T: Clone> Statement<T> {
@@ -734,18 +729,8 @@ impl<T: Clone> Statement<T> {
         T: std::fmt::Debug,
     {
         match self {
-            Statement::AnnotatedStatement { headers, statement } => {
-                let headers_str =
-                    headers
-                        .iter()
-                        .map(|h| format!("//# {h}"))
-                        .chain(std::iter::once(
-                            statement
-                                .as_ref()
-                                .map(|s| s.dump_str())
-                                .unwrap_or_else(String::new),
-                        ));
-                join(headers_str, "\n")
+            Statement::HeaderContextEnter(header) => {
+                format!("//{} {}", "#".repeat(header.level as usize), header.title)
             }
             Statement::Let {
                 name,
@@ -839,15 +824,15 @@ impl<T: Clone> Statement<T> {
             } => {
                 let mut parts = vec![];
                 if let Some(c) = channel {
-                    parts.push(format!("channel: \"{}\"", c));
+                    parts.push(format!("channel: \"{c}\""));
                 }
                 if let Some(w) = when {
-                    parts.push(format!("when: {}", w));
+                    parts.push(format!("when: {w:?}"));
                 }
                 format!("{}.$watch.options({{{}}})", variable, parts.join(", "))
             }
             Statement::WatchNotify { variable, .. } => {
-                format!("{}.$watch.notify()", variable)
+                format!("{variable}.$watch.notify()")
             }
         }
     }
@@ -857,10 +842,7 @@ impl<T: Clone> Statement<T> {
         T: Clone,
     {
         match self {
-            Statement::AnnotatedStatement { statement, .. } => statement
-                .as_ref()
-                .map(|s| s.variables())
-                .unwrap_or_else(HashSet::new),
+            Statement::HeaderContextEnter(_) => HashSet::new(),
             Statement::Declare { .. } | Statement::Break(_) | Statement::Continue(_) => {
                 HashSet::new()
             }

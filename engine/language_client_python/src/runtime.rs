@@ -19,10 +19,10 @@ type PickleReduceResult = PyResult<(
     ),
 )>;
 
-// Conditional runtime selection based on the "interpreter" feature flag
-#[cfg(feature = "interpreter")]
+// Conditional runtime selection based on the "thir-interpreter" feature flag
+#[cfg(feature = "thir-interpreter")]
 pub use baml_runtime::async_interpreter_runtime::BamlAsyncInterpreterRuntime as CoreBamlRuntime;
-#[cfg(not(feature = "interpreter"))]
+#[cfg(not(feature = "thir-interpreter"))]
 pub use baml_runtime::async_vm_runtime::BamlAsyncVmRuntime as CoreBamlRuntime;
 
 use crate::{
@@ -150,7 +150,7 @@ fn extract_handlers_recursive(
                             .collect();
                         if !handlers.is_empty() {
                             // Key by "FunctionName.variable_name"
-                            let key = format!("{}.{}", current_function_name, var_name);
+                            let key = format!("{current_function_name}.{var_name}");
                             var_handlers.insert(key, handlers);
                         }
                     }
@@ -171,7 +171,7 @@ fn extract_handlers_recursive(
                             .collect();
                         if !handlers.is_empty() {
                             // Key by "FunctionName.variable_name"
-                            let key = format!("{}.{}", current_function_name, var_name);
+                            let key = format!("{current_function_name}.{var_name}");
                             stream_handlers.insert(key, handlers);
                         }
                     }
@@ -364,12 +364,13 @@ impl BamlRuntime {
                 if let Some(ref callbacks) = notification_callbacks {
                     Python::with_gil(|py| {
                         match notification.value {
-                            baml_compiler::watch::WatchBamlValue::Block(block_label) => {
-                                // Fire block events to all registered block handlers
+                            baml_compiler::watch::WatchBamlValue::Header(header) => {
+                                // Fire header events to all registered block handlers
                                 for handler in &callbacks.block_handlers {
                                     let block_event_dict = PyDict::new(py);
                                     let _ = block_event_dict
-                                        .set_item("block_label", block_label.clone());
+                                        .set_item("block_label", header.title.clone());
+                                    let _ = block_event_dict.set_item("header_level", header.level);
                                     let _ = block_event_dict.set_item("event_type", "enter");
                                     let _ = handler.call1(py, (block_event_dict,));
                                 }
@@ -533,12 +534,12 @@ impl BamlRuntime {
         abort_controller: Option<&crate::abort_controller::AbortController>,
         #[allow(unused_variables)] watchers: Option<PyObject>,
     ) -> PyResult<FunctionResult> {
-        let Some(args) = parse_py_type(args, false)? else {
+        let Some(baml_args) = parse_py_type(args, false)? else {
             return Err(BamlInvalidArgumentError::new_err(
                 "Failed to parse args, perhaps you used a non-serializable type?",
             ));
         };
-        let Some(args_map) = args.as_map_owned() else {
+        let Some(args_map) = baml_args.as_map_owned() else {
             return Err(BamlInvalidArgumentError::new_err(
                 "Failed to parse args as a map",
             ));
@@ -574,12 +575,13 @@ impl BamlRuntime {
                 if let Some(ref callbacks) = notification_callbacks {
                     Python::with_gil(|py| {
                         match event.value {
-                            baml_compiler::watch::WatchBamlValue::Block(block_label) => {
-                                // Fire block events to all registered block handlers
+                            baml_compiler::watch::WatchBamlValue::Header(header) => {
+                                // Fire header events to all registered block handlers
                                 for handler in &callbacks.block_handlers {
                                     let block_event_dict = PyDict::new(py);
                                     let _ = block_event_dict
-                                        .set_item("block_label", block_label.clone());
+                                        .set_item("block_label", header.title.clone());
+                                    let _ = block_event_dict.set_item("header_level", header.level);
                                     let _ = block_event_dict.set_item("event_type", "enter");
                                     let _ = handler.call1(py, (block_event_dict,));
                                 }
@@ -985,6 +987,12 @@ impl BamlRuntime {
 
     #[pyo3()]
     fn flush(&self) -> PyResult<()> {
+        // Abort any active operations before flushing
+        crate::abort_controller::abort_all_active_operations();
+
+        // Give operations a moment to finish and emit their events
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
         self.inner.flush().map_err(BamlError::from_anyhow)
     }
 
