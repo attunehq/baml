@@ -21,6 +21,7 @@ env:
   # Turbo remote caching
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: gloo
+  HURRY_COURIER_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
 
 concurrency:
   # suffix is important to prevent a concurrency deadlock with the calling workflow
