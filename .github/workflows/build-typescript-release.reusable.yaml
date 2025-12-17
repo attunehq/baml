@@ -100,6 +100,9 @@ jobs:
           ldd --version
 
       # Setup using standardized actions
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
+
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
 
@@ -109,6 +112,7 @@ jobs:
           targets: ${{ matrix._.target }}
           prefix-key: v5-rust-${{ matrix._.target }}
           cache-on-failure: true
+          hurry-api-token: ${{ secrets.HURRY_API_TOKEN }}
 
       - name: Setup Go
         uses: ./.github/actions/setup-go

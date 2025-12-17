@@ -12,6 +12,9 @@ on:
         type: boolean
         default: true
         required: false
+    secrets:
+      HURRY_API_TOKEN:
+        required: false
   push:
     branches:
       - sam/mise-protoc-gen-go

@@ -83,6 +83,8 @@ jobs:
     with:
       version: ${{ needs.determine-version.outputs.version_string }}
       package_for_release: true
+    secrets:
+      HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
 
   build-vscode-reusable:
     needs: [determine-version, build-cli]
