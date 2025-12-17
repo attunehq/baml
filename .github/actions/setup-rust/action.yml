@@ -41,6 +41,7 @@ inputs:
 
 runs:
   using: "composite"
+  secrets: inherit
   steps:
     # - name: Check for mise Rust installation
     #   id: check-rust
