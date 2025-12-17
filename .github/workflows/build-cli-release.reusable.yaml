@@ -159,10 +159,19 @@ jobs:
       # Build the CLI - Always use static-ssl features
       - name: Build CLI Binary
         # This single step now handles all builds
-        run: >
-          ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }}
-          --features static-ssl
-          --no-default-features
+        run: |
+          # Ensure cargo is in PATH for hurry cross (needed for metadata)
+          export PATH="$HOME/.cargo/bin:$PATH"
+          # Verify cargo is available (hurry cross needs it)
+          if [[ "${{ env.CARGO }}" == *"cross"* ]]; then
+            echo "Using cross-compilation, checking cargo availability:"
+            which cargo || (echo "ERROR: cargo not found!" && ls -la $HOME/.cargo/bin/ && exit 1)
+            cargo --version || (echo "ERROR: cargo command failed!" && exit 1)
+          fi
+          # Run the build command
+          ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }} \
+            --features static-ssl \
+            --no-default-features
         working-directory: engine
 
       - name: Build CFFI Library (Unix)
