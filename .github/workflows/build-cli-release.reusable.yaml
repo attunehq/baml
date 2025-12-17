@@ -61,7 +61,8 @@ jobs:
 
     env:
       CROSS_VERSION: v0.2.5
-      CARGO: cargo
+      CARGO: hurry cargo
+      HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
       TARGET_FLAGS: ${{ matrix._.target != '' && format('--target {0}', matrix._.target) || '' }}
       RUST_BACKTRACE: 1
       # When CARGO is set to CROSS, TARGET_DIR includes matrix.target.
@@ -124,8 +125,8 @@ jobs:
       - name: Use Cross
         if: contains(matrix._.os, 'ubuntu')
         run: |
-          cargo install cross
-          echo 'CARGO=cross' >> "$GITHUB_ENV"
+          hurry cargo install cross
+          echo 'CARGO=hurry cross' >> "$GITHUB_ENV"
 
       - name: Set target variables
         shell: bash
@@ -159,7 +160,7 @@ jobs:
         shell: bash
         run: |
           # Set the correct protoc-gen-go path based on whether we're using cross (Linux) or native build
-          if [[ "${{ env.CARGO }}" == "cross" ]]; then
+          if [[ "${{ env.CARGO }}" == *"cross"* ]]; then
             # For cross builds (Linux), protoc-gen-go will be installed in the container at /usr/local/bin
             export PROTOC_GEN_GO_PATH="/usr/local/bin/protoc-gen-go"
           else
@@ -181,7 +182,7 @@ jobs:
         if: ${{ contains(matrix._.os, 'windows') }}
         shell: bash
         run: |
-          cargo build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
+          hurry cargo build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
         working-directory: engine
 
       # Determine CFFI library name and artifact suffix based on OS

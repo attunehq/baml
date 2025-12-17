@@ -87,10 +87,14 @@ runs:
 
     - name: Install wasm-pack
       if: inputs.enable-wasm == 'true'
-      run: cargo install wasm-pack --version ${{ inputs.wasm-pack-version }}
+      run: hurry cargo install wasm-pack --version ${{ inputs.wasm-pack-version }}
       shell: bash
+      env:
+        HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
 
     - name: Install cross-rs
       if: inputs.enable-cross == 'true'
-      run: cargo install cross --git https://github.com/cross-rs/cross
+      run: hurry cargo install cross --git https://github.com/cross-rs/cross
       shell: bash
+      env:
+        HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}

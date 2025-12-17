@@ -30,3 +30,7 @@ runs:
       with:
         install_args: "protoc-gen-go"
         cache: true
+    - name: Install hurry
+      shell: bash
+      run: |
+        curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash
