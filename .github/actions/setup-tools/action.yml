@@ -30,7 +30,13 @@ runs:
       with:
         install_args: "protoc-gen-go"
         cache: true
-    - name: Install hurry
+    - name: Install hurry (Unix)
+      if: runner.os != 'Windows'
       shell: bash
       run: |
         curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash
+    - name: Install hurry (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex

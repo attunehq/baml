@@ -61,7 +61,7 @@ jobs:
 
     env:
       CROSS_VERSION: v0.2.5
-      CARGO: hurry cargo
+      CARGO: cargo
       HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
       TARGET_FLAGS: ${{ matrix._.target != '' && format('--target {0}', matrix._.target) || '' }}
       RUST_BACKTRACE: 1
@@ -127,16 +127,7 @@ jobs:
         if: contains(matrix._.os, 'ubuntu')
         run: |
           hurry cargo install cross
-          # Ensure cargo is in PATH for hurry cross (it needs cargo on host for metadata)
-          # rustup should add ~/.cargo/bin to PATH, but let's ensure it's there
-          export PATH="$HOME/.cargo/bin:$PATH"
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          # Verify cargo is available
-          echo "Checking cargo availability:"
-          which cargo || echo "Warning: cargo not found in PATH"
-          cargo --version || echo "Warning: cargo command failed"
-          echo "PATH: $PATH"
-          echo 'CARGO=hurry cross' >> "$GITHUB_ENV"
+          echo 'CARGO=cross' >> "$GITHUB_ENV"
 
       - name: Set target variables
         shell: bash
@@ -159,19 +150,10 @@ jobs:
       # Build the CLI - Always use static-ssl features
       - name: Build CLI Binary
         # This single step now handles all builds
-        run: |
-          # Ensure cargo is in PATH for hurry cross (needed for metadata)
-          export PATH="$HOME/.cargo/bin:$PATH"
-          # Verify cargo is available (hurry cross needs it)
-          if [[ "${{ env.CARGO }}" == *"cross"* ]]; then
-            echo "Using cross-compilation, checking cargo availability:"
-            which cargo || (echo "ERROR: cargo not found!" && ls -la $HOME/.cargo/bin/ && exit 1)
-            cargo --version || (echo "ERROR: cargo command failed!" && exit 1)
-          fi
-          # Run the build command
-          ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }} \
-            --features static-ssl \
-            --no-default-features
+        run: >
+          hurry ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }}
+          --features static-ssl
+          --no-default-features
         working-directory: engine
 
       - name: Build CFFI Library (Unix)
@@ -194,7 +176,7 @@ jobs:
           export GOBIN=$GOPATH/bin
           export PATH=$PATH:$GOROOT:$GOPATH:$GOBIN
 
-          ${{ env.CARGO }} build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
+          hurry ${{ env.CARGO }} build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
         working-directory: engine
 
       - name: Build CFFI Library (Windows)
