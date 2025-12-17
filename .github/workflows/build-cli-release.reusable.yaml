@@ -127,6 +127,15 @@ jobs:
         if: contains(matrix._.os, 'ubuntu')
         run: |
           hurry cargo install cross
+          # Ensure cargo is in PATH for hurry cross (it needs cargo on host for metadata)
+          # rustup should add ~/.cargo/bin to PATH, but let's ensure it's there
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          # Verify cargo is available
+          echo "Checking cargo availability:"
+          which cargo || echo "Warning: cargo not found in PATH"
+          cargo --version || echo "Warning: cargo command failed"
+          echo "PATH: $PATH"
           echo 'CARGO=hurry cross' >> "$GITHUB_ENV"
 
       - name: Set target variables
