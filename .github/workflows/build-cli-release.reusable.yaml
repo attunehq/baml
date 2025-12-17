@@ -80,6 +80,7 @@ jobs:
         with:
           targets: ${{ matrix._.target }}
           enable-cache: false
+          hurry-api-token: ${{ secrets.HURRY_API_TOKEN }}
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
