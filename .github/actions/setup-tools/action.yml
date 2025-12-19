@@ -34,12 +34,12 @@ runs:
       if: runner.os != 'Windows'
       shell: bash
       run: |
-        curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash
+        curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
     - name: Install hurry (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+        $env:Version="0.4.2-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
         # Add hurry to PATH for bash scripts
         # Default installation location is $env:LOCALAPPDATA\Programs\hurry
         $hurryPath = Join-Path $env:LOCALAPPDATA "Programs\hurry"
