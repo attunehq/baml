@@ -23,6 +23,7 @@ env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: gloo
   HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
+  HURRY_LOG: debug
 
 concurrency:
   # suffix is important to prevent a concurrency deadlock with the calling workflow

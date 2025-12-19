@@ -35,6 +35,7 @@ env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: gloo
   HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
+  HURRY_LOG: debug
 
 jobs:
   # Run all quality checks in parallel (lightweight setup)
