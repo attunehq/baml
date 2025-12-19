@@ -159,12 +159,6 @@ jobs:
           --no-default-features
         working-directory: engine
 
-      - name: Clean Cargo Build (macOS aarch64)
-        if: matrix._.os == 'macos-14' && matrix._.target == 'aarch64-apple-darwin'
-        shell: bash
-        run: cargo clean
-        working-directory: engine
-
       - name: Build CFFI Library (Unix)
         if: ${{ !contains(matrix._.os, 'windows') }}
         shell: bash
