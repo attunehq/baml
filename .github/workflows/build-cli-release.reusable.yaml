@@ -22,6 +22,7 @@ env:
   # Turbo remote caching
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: gloo
+  HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
 
 concurrency:
   # suffix is important to prevent a concurrency deadlock with the calling workflow
@@ -122,6 +123,16 @@ jobs:
           # Test that protoc can find the go plugin (this will show an error about missing .proto file, but that's expected)
           protoc --go_out=/tmp --help | grep -q "go_out" && echo "✅ protoc recognizes --go_out flag" || echo "❌ protoc does not recognize --go_out flag"
 
+      - name: Install hurry (Unix)
+        if: matrix._.os != 'windows-2022'
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+
+      - name: Install hurry (Windows)
+        if: matrix._.os == 'windows-2022'
+        shell: pwsh
+        run: |
+          $env:Version="0.4.2-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+
       - name: Use Cross
         if: contains(matrix._.os, 'ubuntu')
         run: |
@@ -150,7 +161,7 @@ jobs:
       - name: Build CLI Binary
         # This single step now handles all builds
         run: >
-          ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }}
+          hurry ${{ env.CARGO }} build --release --bin baml-cli ${{ env.TARGET_FLAGS }}
           --features static-ssl
           --no-default-features
         working-directory: engine
@@ -175,14 +186,14 @@ jobs:
           export GOBIN=$GOPATH/bin
           export PATH=$PATH:$GOROOT:$GOPATH:$GOBIN
 
-          ${{ env.CARGO }} build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
+          hurry ${{ env.CARGO }} build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
         working-directory: engine
 
       - name: Build CFFI Library (Windows)
         if: ${{ contains(matrix._.os, 'windows') }}
         shell: bash
         run: |
-          cargo build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
+          hurry cargo build --release -p baml_cffi ${{ env.TARGET_FLAGS }}
         working-directory: engine
 
       # Determine CFFI library name and artifact suffix based on OS

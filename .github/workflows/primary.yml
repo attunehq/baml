@@ -34,6 +34,7 @@ env:
   # Turbo remote caching
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: gloo
+  HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
 
 jobs:
   # Run all quality checks in parallel (lightweight setup)
@@ -70,6 +71,10 @@ jobs:
         if: matrix.check == 'rust-lint'
         uses: ./.github/actions/setup-go
 
+      - name: Install hurry
+        if: contains(matrix.check, 'rust')
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+
       - name: Setup Python
         if: matrix.check == 'python-lint'
         uses: ./.github/actions/setup-python
@@ -90,12 +95,12 @@ jobs:
 
       - name: Run Rust lint (Clippy)
         if: matrix.check == 'rust-lint'
-        run: RUSTFLAGS="-A unused -D warnings" cargo clippy --workspace -- -D clippy::print_stdout
+        run: RUSTFLAGS="-A unused -D warnings" hurry cargo clippy --workspace -- -D clippy::print_stdout
         working-directory: engine
 
       - name: Run Rust lint WASM (Clippy)
         if: matrix.check == 'rust-lint-wasm'
-        run: RUSTFLAGS="-A unused -D warnings" cargo clippy --target wasm32-unknown-unknown
+        run: RUSTFLAGS="-A unused -D warnings" hurry cargo clippy --target wasm32-unknown-unknown
         working-directory: engine/baml-schema-wasm
 
       - name: Run Python lint
@@ -146,8 +151,11 @@ jobs:
           targets: wasm32-unknown-unknown
           enable-wasm: true
 
+      - name: Install hurry
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+
       - name: Build rust for wasm32
-        run: cargo build --target=wasm32-unknown-unknown
+        run: hurry cargo build --target=wasm32-unknown-unknown
         working-directory: engine/baml-schema-wasm
 
   # Test node generator (only needs CLI)
@@ -240,6 +248,10 @@ jobs:
         if: matrix.test-suite == 'rust-unit'
         uses: ./.github/actions/setup-ruby
 
+      - name: Install hurry
+        if: matrix.test-suite == 'rust-unit'
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+
       - name: Run Rust unit tests
         if: matrix.test-suite == 'rust-unit'
         run: |
@@ -247,7 +259,7 @@ jobs:
           RUBY_LIB_PATH=$(ruby -e 'puts RbConfig::CONFIG["libdir"]')
           export LD_LIBRARY_PATH="${RUBY_LIB_PATH}:${LD_LIBRARY_PATH}"
           # Build baml_cffi shared library
-          cargo build --package baml_cffi
+          hurry cargo build --package baml_cffi
           echo "Listing release directory:"
           ls -la engine/target/release/libbaml_cffi.* || true
           ls -la engine/target/release/baml_cffi.* || true
@@ -255,7 +267,7 @@ jobs:
           export BAML_LIBRARY_PATH=${{ github.workspace }}/engine/target/debug/libbaml_cffi.so
           # Run tests
           echo "BAML_LIBRARY_PATH=${{ github.workspace }}/engine/target/debug/libbaml_cffi.so" >> $GITHUB_ENV
-          cargo test --features skip-integ-tests --verbose -- --nocapture
+          hurry cargo test --features skip-integ-tests --verbose -- --nocapture
         working-directory: engine
 
       - name: Run Python integration tests
@@ -292,8 +304,18 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Install hurry (Unix)
+        if: matrix.os != 'windows-latest'
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+
+      - name: Install hurry (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $env:Version="0.4.2-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+
       - name: Build CLI
-        run: cargo build --release --bin baml-cli --target ${{ matrix.target }}
+        run: hurry cargo build --release --bin baml-cli --target ${{ matrix.target }}
         working-directory: engine
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4

@@ -23,6 +23,7 @@ env:
   CARGO_NET_RETRY: 10
   CARGO_TERM_COLOR: always
   RUSTUP_MAX_RETRIES: 10
+  HURRY_API_TOKEN: ${{ secrets.HURRY_API_TOKEN }}
 
 jobs:
   cargo-fmt:
@@ -54,9 +55,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "baml_language -> target"
+      - name: "Install hurry"
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
 
       - name: "Install Rust toolchain"
         run: |
@@ -66,11 +66,11 @@ jobs:
         working-directory: baml_language
 
       - name: "Clippy"
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+        run: hurry cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
         working-directory: baml_language
 
       - name: "Clippy (wasm)"
-        run: cargo clippy --workspace --exclude baml_onionskin --exclude baml_language_server --exclude baml_cli --target wasm32-unknown-unknown --all-features --locked -- -D warnings
+        run: hurry cargo clippy --workspace --exclude baml_onionskin --exclude baml_language_server --exclude baml_cli --target wasm32-unknown-unknown --all-features --locked -- -D warnings
         working-directory: baml_language
 
   cargo-test-linux:
@@ -83,9 +83,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "baml_language -> target"
+      - name: "Install hurry"
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
 
       - name: "Install Rust toolchain"
         run: rustup show
@@ -102,15 +101,15 @@ jobs:
           tool: cargo-nextest
 
       - name: "Run tests with nextest"
-        run: cargo nextest run --all-features
+        run: hurry cargo nextest run --all-features
         working-directory: baml_language
 
       - name: "Run snapshot tests with insta"
-        run: cargo insta test --all-features --unreferenced reject
+        run: hurry cargo insta test --all-features --unreferenced reject
         working-directory: baml_language
 
       - name: "Check documentation"
-        run: cargo doc --all --no-deps
+        run: hurry cargo doc --all --no-deps
         working-directory: baml_language
         env:
           RUSTDOCFLAGS: "-D warnings"
@@ -134,9 +133,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "baml_language -> target"
+      - name: "Install hurry"
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
 
       - name: "Install Rust toolchain"
         run: rustup show
@@ -149,8 +147,8 @@ jobs:
 
       - name: "Run tests"
         run: |
-          cargo nextest run --all-features
-          cargo test --all-features --doc
+          hurry cargo nextest run --all-features
+          hurry cargo test --all-features --doc
         working-directory: baml_language
 
   cargo-test-windows:
@@ -163,9 +161,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "baml_language -> target"
+      - name: "Install hurry"
+        shell: pwsh
+        run: |
+          $env:Version="0.4.2-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
 
       - name: "Install Rust toolchain"
         run: rustup show
@@ -178,8 +177,8 @@ jobs:
 
       - name: "Run tests"
         run: |
-          cargo nextest run --all-features
-          cargo test --all-features --doc
+          hurry cargo nextest run --all-features
+          hurry cargo test --all-features --doc
         working-directory: baml_language
 
   cargo-test-wasm:
@@ -192,9 +191,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "baml_language -> target"
+      - name: "Install hurry"
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
 
       - name: "Install Rust toolchain"
         run: |
@@ -204,8 +202,8 @@ jobs:
 
       - name: "Build for WASM"
         run: |
-          cargo build --workspace --target wasm32-unknown-unknown --exclude baml_onionskin --exclude baml_language_server --exclude baml_cli --no-default-features
-          cargo build --workspace --target wasm32-unknown-unknown --exclude baml_onionskin --exclude baml_language_server --exclude baml_cli --no-default-features --release
+          hurry cargo build --workspace --target wasm32-unknown-unknown --exclude baml_onionskin --exclude baml_language_server --exclude baml_cli --no-default-features
+          hurry cargo build --workspace --target wasm32-unknown-unknown --exclude baml_onionskin --exclude baml_language_server --exclude baml_cli --no-default-features --release
         working-directory: baml_language
 
       - name: "Check WASM size"
@@ -231,9 +229,8 @@ jobs:
           file: "baml_language/Cargo.toml"
           field: "workspace.package.rust-version"
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "baml_language -> target"
+      - name: "Install hurry"
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
 
       - name: "Install Rust toolchain (MSRV)"
         env:
@@ -246,7 +243,7 @@ jobs:
       - name: "Build with MSRV"
         env:
           MSRV: ${{ steps.msrv.outputs.value }}
-        run: cargo "+${MSRV}" test --no-run --all-features
+        run: hurry cargo "+${MSRV}" test --no-run --all-features
         working-directory: baml_language
 
   check-dependencies:
@@ -282,9 +279,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "baml_language -> target"
+      - name: "Install hurry"
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
 
       - name: "Install Rust toolchain"
         run: rustup show
@@ -297,8 +293,8 @@ jobs:
 
       - name: "Run snapshot tests"
         run: |
-          cargo insta test --all-features --unreferenced=reject
-          cargo insta test --all-features --review
+          hurry cargo insta test --all-features --unreferenced=reject
+          hurry cargo insta test --all-features --review
         working-directory: baml_language
 
       - name: "Check for snapshot changes"
