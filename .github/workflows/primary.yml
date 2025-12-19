@@ -313,6 +313,7 @@ jobs:
         shell: pwsh
         run: |
           $env:Version="0.4.2-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+          echo "$env:LOCALAPPDATA\Programs\hurry" >> $env:GITHUB_PATH
 
       - name: Build CLI
         run: hurry cargo build --release --bin baml-cli --target ${{ matrix.target }}
