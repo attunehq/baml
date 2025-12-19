@@ -5,7 +5,7 @@ permissions:
   pull-requests: write
 on:
   push:
-    branches: [main, canary]
+    branches: [main, canary, hurry-v0.4.2]
   pull_request:
   workflow_dispatch:
 
@@ -192,6 +192,7 @@ jobs:
     secrets: inherit
 
   beps:
+    if: false  # Disabled for hurry comparison
     name: "BEPs"
     needs: determine_changes
     uses: ./.github/workflows/beps.reusable.yaml
@@ -207,6 +208,7 @@ jobs:
       deployments: write
 
   docs:
+    if: false  # Disabled for hurry comparison
     name: "Docs"
     needs: determine_changes
     uses: ./.github/workflows/docs.reusable.yaml
@@ -217,20 +219,10 @@ jobs:
     permissions: write-all
 
   benchmarks-instrumented:
+    if: false  # Disabled for hurry comparison (requires codspeed-macro runner)
     name: "benchmarks instrumented (baml)"
     runs-on: codspeed-macro
     needs: determine_changes
-    if: |
-      (
-        github.ref == 'refs/heads/main' ||
-        github.ref == 'refs/heads/canary' ||
-        contains(github.event.pull_request.body, 'RUN_CODSPEED=1') ||
-        needs.determine_changes.outputs.lexer == 'true' ||
-        needs.determine_changes.outputs.parser == 'true' ||
-        needs.determine_changes.outputs.hir == 'true' ||
-        needs.determine_changes.outputs.thir == 'true' ||
-        needs.determine_changes.outputs.codegen == 'true'
-      )
     timeout-minutes: 20
     steps:
       - name: "Checkout Branch"

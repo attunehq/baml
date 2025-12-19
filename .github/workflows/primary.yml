@@ -11,6 +11,7 @@ on:
       - "typescript/**"
     branches:
       - canary
+      - hurry-v0.4.2
   # need to run this periodically on the default branch to populate the build cache
   schedule:
     # daily at 2am PST
@@ -41,7 +42,8 @@ jobs:
     strategy:
       matrix:
         check:
-          [typescript-lint, rust-format, rust-lint, rust-lint-wasm, python-lint]
+          # Disabled typescript-lint, python-lint for hurry comparison
+          [rust-format, rust-lint, rust-lint-wasm]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -208,7 +210,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        test-suite: [rust-unit, python-integration]
+        # Disabled python-integration for hurry comparison
+        test-suite: [rust-unit]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
