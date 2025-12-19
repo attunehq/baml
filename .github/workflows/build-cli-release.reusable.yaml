@@ -305,7 +305,7 @@ jobs:
 
       # Create archives with proper format
       - name: Create archive (Windows)
-        if: matrix._.os == 'windows-2022'
+        if: inputs.package_for_release && matrix._.os == 'windows-2022'
         shell: bash
         run: |
           set -euo pipefail # Exit immediately if a command exits with a non-zero status, treat unset variables as an error, and catch errors in pipelines.
@@ -353,7 +353,7 @@ jobs:
           ls -l "${archive_base}".*
 
       - name: Create archive (Unix)
-        if: matrix._.os != 'windows-2022'
+        if: inputs.package_for_release && matrix._.os != 'windows-2022'
         shell: bash
         run: |
           set -euo pipefail # Exit immediately if a command exits with a non-zero status, treat unset variables as an error, and catch errors in pipelines.
@@ -394,6 +394,7 @@ jobs:
 
       # Debug: List root directory contents
       - name: List root directory contents
+        if: inputs.package_for_release
         shell: bash
         run: |
           echo "Listing root directory contents:"
@@ -413,7 +414,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload CLI artifacts (CI)
-        if: inputs.package_for_release == false
+        if: ${{ !inputs.package_for_release }}
         uses: actions/upload-artifact@v4
         with:
           name: baml-cli-${{ matrix._.target }}
