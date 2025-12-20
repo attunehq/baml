@@ -57,7 +57,7 @@ jobs:
           persist-credentials: false
 
       - name: "Install hurry"
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: "Install Rust toolchain"
         run: |
@@ -85,7 +85,7 @@ jobs:
           persist-credentials: false
 
       - name: "Install hurry"
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: "Install Rust toolchain"
         run: rustup show
@@ -135,7 +135,7 @@ jobs:
           persist-credentials: false
 
       - name: "Install hurry"
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: "Install Rust toolchain"
         run: rustup show
@@ -165,7 +165,7 @@ jobs:
       - name: "Install hurry"
         shell: pwsh
         run: |
-          $env:Version="0.4.2-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+          $env:Version="0.4.2-alpha.2"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
           echo "$env:LOCALAPPDATA\Programs\hurry" >> $env:GITHUB_PATH
 
       - name: "Install Rust toolchain"
@@ -194,7 +194,7 @@ jobs:
           persist-credentials: false
 
       - name: "Install hurry"
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: "Install Rust toolchain"
         run: |
@@ -232,7 +232,7 @@ jobs:
           field: "workspace.package.rust-version"
 
       - name: "Install hurry"
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: "Install Rust toolchain (MSRV)"
         env:
@@ -282,7 +282,7 @@ jobs:
           persist-credentials: false
 
       - name: "Install hurry"
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: "Install Rust toolchain"
         run: rustup show

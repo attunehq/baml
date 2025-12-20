@@ -126,13 +126,13 @@ jobs:
 
       - name: Install hurry (Unix)
         if: matrix._.os != 'windows-2022'
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: Install hurry (Windows)
         if: matrix._.os == 'windows-2022'
         shell: pwsh
         run: |
-          $env:Version="0.4.2-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+          $env:Version="0.4.2-alpha.2"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
           echo "$env:LOCALAPPDATA\Programs\hurry" >> $env:GITHUB_PATH
 
       - name: Use Cross

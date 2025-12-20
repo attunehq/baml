@@ -58,7 +58,7 @@ jobs:
         if: matrix.check == 'typescript-lint'
         uses: ./.github/actions/setup-node
         with:
-          node-action-version: 'v6'
+          node-action-version: "v6"
 
       # Setup Rust for Rust checks
       - name: Setup Rust
@@ -74,7 +74,7 @@ jobs:
 
       - name: Install hurry
         if: contains(matrix.check, 'rust')
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: Setup Python
         if: matrix.check == 'python-lint'
@@ -122,7 +122,7 @@ jobs:
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
-          node-action-version: 'v6'
+          node-action-version: "v6"
 
       # Setup Rust for Rust checks
       - name: Setup Rust
@@ -153,7 +153,7 @@ jobs:
           enable-wasm: true
 
       - name: Install hurry
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: Build rust for wasm32
         run: hurry cargo build --target=wasm32-unknown-unknown
@@ -172,7 +172,7 @@ jobs:
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
-          node-action-version: 'v6'
+          node-action-version: "v6"
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -238,7 +238,7 @@ jobs:
         if: matrix.test-suite == 'python-integration'
         uses: ./.github/actions/setup-node
         with:
-          node-action-version: 'v6'
+          node-action-version: "v6"
 
       - name: Setup Python
         uses: ./.github/actions/setup-python
@@ -251,7 +251,7 @@ jobs:
 
       - name: Install hurry
         if: matrix.test-suite == 'rust-unit'
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: Run Rust unit tests
         if: matrix.test-suite == 'rust-unit'
@@ -307,13 +307,13 @@ jobs:
 
       - name: Install hurry (Unix)
         if: matrix.os != 'windows-latest'
-        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.1
+        run: curl -sSfL https://hurry-releases.s3.amazonaws.com/install.sh | bash -s -- -v 0.4.2-alpha.2
 
       - name: Install hurry (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $env:Version="0.4.2-alpha.1"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
+          $env:Version="0.4.2-alpha.2"; irm https://hurry-releases.s3.amazonaws.com/install.ps1 | iex
           echo "$env:LOCALAPPDATA\Programs\hurry" >> $env:GITHUB_PATH
 
       - name: Build CLI
